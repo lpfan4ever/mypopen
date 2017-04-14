@@ -32,15 +32,15 @@
 
 //static FILE *mypopen(const char *command, const char *type);
 //static int mypclose(FILE *stream);
-static void do_child(const char *type);
-static void do_parent(const char *type);
+void do_child(void);
+void do_parent(const char *type);
 static FILE *fp = NULL;
 static pid_t childpid;
 static int fd[2];
 static int x = 0;
 static int y = 0;
 
-static FILE *mypopen(const char *command, const char *type)
+FILE *mypopen(const char *command, const char *type)
 {
 	//int fd[2];
 	
@@ -49,7 +49,7 @@ static FILE *mypopen(const char *command, const char *type)
 		errno = EAGAIN;
 		return NULL;
 	}
-	if(*type != 'r' && *type != 'w' && type[1] == '\0')
+	if((*type != 'r' && *type != 'w') || (type[1] != '\0'))
 	{
 		errno = EINVAL;
 		return NULL;
@@ -79,65 +79,27 @@ static FILE *mypopen(const char *command, const char *type)
 	}
 	else if(childpid == 0)//Child Proces
 	{
-		if(*type == 'r')
-		{
-			(void) close(fd[0]);
-			if(fd[1] != STDOUT_FILENO)
-			{
-				if(dup2(fd[1], STDOUT_FILENO) == -1)
-				{
-					_exit(EXIT_FAILURE);
-				}
-				(void) close(fd[1]);
-			}
-		}
-		else if(*type == 'w')
-		{
-			(void )close(fd[1]);
-			if(fd[0] != STDIN_FILENO)
-			{
-				if(dup2(fd[0], STDIN_FILENO) == -1)
-				{
-					_exit(EXIT_FAILURE);
-				}
-				(void) close(fd[0]);
-			}
-		}
+		do_child();
 		(void) execl("/bin/sh","sh","-c",command,(char *) NULL);
+		_exit(127);
 	}
 	else if(childpid > 0)//Parent Process
 	{
-		if(*type == 'r')
-		{
-			if((fp = fdopen(fd[0], type)) == NULL)
-			{
-				return NULL;
-			}
-			(void) close(fd[1]);
-		}
-		else if(*type == 'w')
-		{
-			if((fp = fdopen(fd[1], type)) == NULL)
-			{
-				return NULL;
-			}
-			(void) close(fd[0]);
-		}
+		do_parent(type);
 	}
 	return(fp);
 }
-static int mypclose(FILE *stream)
+int mypclose(FILE *stream)
 {
-	pid_t child_pid;
 	pid_t wait_pid;
 	int status;
 	
-	if(fp == NULL || fp != stream)//mypopen set fp
+	if(fp == NULL)//mypopen set fp
 	{
 		errno = ECHILD;
 		return -1;
 	}	
-	if(stream == NULL)//parameter valid
+	if((stream == NULL) || (stream != fp))//parameter valid
 	{	
 		errno = EINVAL;
 		return -1;
@@ -147,7 +109,7 @@ static int mypclose(FILE *stream)
 		return -1;
 	}
 	
-	while((wait_pid = waitpid(child_pid, &status, 0)) != child_pid)
+	while((wait_pid = waitpid(childpid, &status, 0)) != childpid)
 	{
 		if(wait_pid == -1)
 		{
@@ -169,23 +131,22 @@ static int mypclose(FILE *stream)
 		return -1;
 	}
 }
-static void do_child(const char *type)
+void do_child(void)
 {
 	(void)close(fd[x]);
 	if(fd[y] != y)
 	{
 		if(dup2(fd[y],y) == -1)
 		{
-			_exit(EXIT_FAILURE);
+			_exit(127);
 		}
 		(void)close(fd[y]);
 	}
 }
-static void do_parent(const char *type)
+void do_parent(const char *type)
 {
 	if((fp = fdopen(fd[x], type)) == NULL)
 	{
 		return NULL;
 	}
 	(void)close(fd[y]);
-}
