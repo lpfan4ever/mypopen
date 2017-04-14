@@ -23,5 +23,5 @@
  
 #include <stdio.h>
  
-static FILE *mypopen(const char *command, const char *type);
-static int mypclose(FILE *stream);
+FILE *mypopen(const char *command, const char *type);
+int mypclose(FILE *stream);
