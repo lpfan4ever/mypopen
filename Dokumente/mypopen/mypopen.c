@@ -30,26 +30,24 @@
 #include <sys/wait.h>
 #include "mypopen.h"
 
-//static FILE *mypopen(const char *command, const char *type);
-//static int mypclose(FILE *stream);
+
 void do_child(void);
 void do_parent(const char *type);
-static FILE *fp = NULL;
-static pid_t childpid;
-static int fd[2];
+static FILE *fp = NULL;//Filepointer, return Value from mypopen
+static pid_t childpid;//PID from child
+static int fd[2];//Pipe
 static int x = 0;
 static int y = 0;
 
 FILE *mypopen(const char *command, const char *type)
 {
-	//int fd[2];
 	
-	if(fp != NULL)
+	if(fp != NULL)//mypopen in use
 	{
 		errno = EAGAIN;
 		return NULL;
 	}
-	if((*type != 'r' && *type != 'w') || (type[1] != '\0'))
+	if((*type != 'r' && *type != 'w') || (type[1] != '\0'))//Argument invalid
 	{
 		errno = EINVAL;
 		return NULL;
@@ -64,14 +62,14 @@ FILE *mypopen(const char *command, const char *type)
 		x = 1;
 		y = 0;
 	}
-	if(pipe(fd) == -1)
+	if(pipe(fd) == -1)//Pipe error
 	{
 		return NULL;
 	}
 	
-	childpid = fork();
+	childpid = fork();//create child
 	
-	if(childpid < 0)
+	if(childpid < 0)//error at create
 	{
 		close(fd[0]);
 		close(fd[1]);
@@ -81,7 +79,7 @@ FILE *mypopen(const char *command, const char *type)
 	{
 		do_child();
 		(void) execl("/bin/sh","sh","-c",command,(char *) NULL);
-		_exit(127);
+		_exit(127);//terminate calling process, 127 command not found
 	}
 	else if(childpid > 0)//Parent Process
 	{
@@ -104,16 +102,16 @@ int mypclose(FILE *stream)
 		errno = EINVAL;
 		return -1;
 	}
-	if(fclose(stream) == EOF)
+	if(fclose(stream) == EOF)//failure at fclsoe
 	{
 		return -1;
 	}
 	
 	while((wait_pid = waitpid(childpid, &status, 0)) != childpid)
 	{
-		if(wait_pid == -1)
+		if(wait_pid == -1)//waiting
 		{
-			if(errno == EINTR)
+			if(errno == EINTR)//still wait
 			{
 				continue;
 			}
@@ -121,7 +119,7 @@ int mypclose(FILE *stream)
 		//error
 		return -1;
 	}
-	if(WIFEXITED(status))
+	if(WIFEXITED(status))//child terminated normal
 	{
 		return WEXITSTATUS(status);//child terminated normal
 	}
@@ -138,7 +136,7 @@ void do_child(void)
 	{
 		if(dup2(fd[y],y) == -1)
 		{
-			_exit(127);
+			_exit(1);
 		}
 		(void)close(fd[y]);
 	}
@@ -150,3 +148,4 @@ void do_parent(const char *type)
 		return NULL;
 	}
 	(void)close(fd[y]);
+}
